@@ -347,11 +347,68 @@ get_hostname() {
     hostname
 }
 
-# Gets the IPv4 address for a given interface.
-# Arg: $1 = interface_name (e.g., eth0)
+# Gets the IPv4 addresses for the first two ethernet interfaces and formats them as a bash array for display on the LCD.
+# This function is specifically tailored to return two lines labeled "eth0" and "eth1", regardless of the actual interface names.
+# Returns: Bash array of two strings: ("eth0: <address>", "eth1: <address>")
 get_ipv4_addr() {
-    local iface="$1"
-    ip -4 addr show "$iface" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -n 1
+    local -a interface_addresses=()
+    local -a eth_ifaces=()
+    local iface_name
+    local iface_addr
+    local output_name
+
+    local all_ifaces=$(ip -o link show | awk -F': ' '{print $2}' | grep -v 'lo\|docker\|br-\|veth\|tun\|tap' | tr '\n' ' ')
+
+    read -r -a eth_ifaces <<< "$all_ifaces"
+    
+    if [ ${#eth_ifaces[@]} -gt 2 ]; then
+        eth_ifaces=("${eth_ifaces[@]:0:2}")
+    fi
+    
+    for i in "${!eth_ifaces[@]}"; do
+        iface_name=${eth_ifaces[$i]}
+        
+        if [ "$i" -eq 0 ]; then
+            output_name="eth0"
+        else
+            output_name="eth1"
+        fi
+
+        iface_addr=$(ip -4 addr show dev "$iface_name" 2>/dev/null | grep -oP 'inet \K[\d.]+')
+
+        if [ -z "$iface_addr" ]; then
+            local iface_ipv6=$(ip -6 addr show dev "$iface_name" 2>/dev/null | grep -oP 'inet6 \K[^/]+')
+            
+            if [ -n "$iface_ipv6" ]; then
+                interface_addresses[$i]="${output_name}: only ipv6"
+            else
+                local iface_status=$(cat /sys/class/net/$iface_name/operstate 2>/dev/null)
+                
+                if [[ "$iface_status" == "up" ]]; then
+                    interface_addresses[$i]="${output_name}: DHCP fail"
+                elif [[ "$iface_status" == "down" || "$iface_status" == "dormant" ]]; then
+                    interface_addresses[$i]="${output_name}: link down"
+                else
+                    interface_addresses[$i]="${output_name}: can't find"
+                fi
+            fi
+        else
+            interface_addresses[$i]="${output_name}: ${iface_addr}"
+        fi
+    done
+
+    if [ ${#interface_addresses[@]} -lt 2 ]; then
+        if [ ${#interface_addresses[@]} -eq 1 ]; then
+            interface_addresses[1]="eth1: not found"
+        fi
+        
+        if [ ${#interface_addresses[@]} -eq 0 ]; then
+            interface_addresses[0]="eth0: not found"
+            interface_addresses[1]="eth1: not found"
+        fi
+    fi
+
+    printf "%s\n" "${interface_addresses[@]}"
 }
 
 
@@ -376,20 +433,21 @@ main() {
 
     if [ "$current_uptime_seconds" -lt "$UPTIME_BANNER_THRESHOLD_SECONDS" ]; then
         # System just started, show network info
+        log_message "System just started, showing network info (Uptime: ${current_uptime_seconds}s)"
         local hostname_val=$(get_hostname)
-        local eth0_ip=$(get_ipv4_addr "eth0")
-        local eth1_ip=$(get_ipv4_addr "eth1")
+        
+        # get ethernet addresses array from get_ipv4_addr
+        local -a ip_lines
+        mapfile -t ip_lines < <(get_ipv4_addr)
 
         line1_text="$hostname_val"
-        line2_text="eth0: ${eth0_ip:-N/A}"
-        line3_text="eth1: ${eth1_ip:-N/A}"
+        line2_text="${ip_lines[0]}" # "eth0: %ipv4%"
+        line3_text="${ip_lines[1]}" # "eth1: %ipv4%"
         
-        log_message "Displaying boot info (Uptime: ${current_uptime_seconds}s)"
         log_message "Line 1: $line1_text"
         log_message "Line 2: $line2_text"
         log_message "Line 3: $line3_text"
         
-        # Display on LCD
         lcd_clear
         lcd_print_mono 0 "$line1_text"
         lcd_print_mono 1 "$line2_text"
