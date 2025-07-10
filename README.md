@@ -6,14 +6,14 @@ This repository contains two Bash scripts designed to display system status info
 
 Both scripts provide real-time system monitoring directly on your ReadyNAS LCD.
 
-### `lcd_status_simple.sh` (Basic)
+### `lcd_status_simple.sh` (Basic: no root rights needed)
 
   * **Basic Status:** Displays disk usage, CPU usage, and RAM usage.
   * **Non-Root Friendly:** Designed to run without root privileges, making it suitable for less privileged users (though `tty` device permissions are still required).
   * **Visual Indicators:** Uses pseudo-graphic bars for all displayed metrics.
 
 
-### `lcd_status_btrfs.sh` (Advanced)
+### `lcd_status_btrfs.sh` (Advanced: requires root rights)
 
   * **Comprehensive Status:** Displays Ethernet IP addresses during boot, disk usage, CPU usage, RAM usage, and BTRFS array operation status (scrubbing, balancing, defragmenting).
   * **RAID Health Alerts:** Shows a "RAID WARNING" banner on the LCD if any RAID array is detected as degraded.
