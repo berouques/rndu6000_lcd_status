@@ -3,7 +3,7 @@
 # version: 0.1.3
 # date: 2025-07-11 02:26
 # author: Le Berouque
-# github: https://github.com/berouques/TODO
+# github: https://github.com/berouques/rndu6000_lcd_status/
 # license: MIT
 
 # This script is designed for the NetGear ReadyNAS RNDU6000 to display a single word
